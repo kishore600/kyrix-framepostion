@@ -4,7 +4,6 @@ import Form from "next/form";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
 import { publishPost, saveDraft } from "@/app/actions";
-import { Post } from "@prisma/client";
 
 function SubmitButton({ isPublished }: { isPublished?: boolean }) {
   const { pending } = useFormStatus();
@@ -32,7 +31,7 @@ function SubmitButton({ isPublished }: { isPublished?: boolean }) {
 }
 
 interface PostFormProps {
-  post?: Post;
+  post?: any;
 }
 
 export function PostForm({ post }: PostFormProps) {

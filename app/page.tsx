@@ -7,7 +7,7 @@ export default function Home() {
     <main className="min-h-screen">
       {/* Navigation */}
       <nav className="flex justify-between items-center p-6 max-w-7xl mx-auto">
-        <div className="text-2xl font-bold">Productivity OS</div>
+        <div className="text-2xl font-bold">Kyrix</div>
         <div className="space-x-4">
           <Link 
             href="/login" 
