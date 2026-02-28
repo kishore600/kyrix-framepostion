@@ -21,37 +21,35 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Device not found' }, { status: 404 })
     }
 
-    const tasks = await prisma.task.findMany({
+    const now = new Date()
+    const weekFromNow = addDays(now, 7)
+
+    let tasks = await prisma.task.findMany({
       where: {
         userId: device.userId,
         completed: false
-      }
+      },
+      orderBy: { date: 'asc' }
     })
 
     let filteredTasks = []
-    const now = new Date()
 
     if (device.mode === 'TODAY') {
-      filteredTasks = tasks
-        .filter(task => isToday(task.date))
-        .map(task => ({
-          time: task.time || '00:00',
-          title: task.title
-        }))
-        .sort((a, b) => a.time.localeCompare(b.time))
+      filteredTasks = tasks.filter(task => isToday(task.date))
     } else {
-      const weekFromNow = addDays(now, 7)
-
-      filteredTasks = tasks
-        .filter(task =>
-          isWithinInterval(task.date, { start: now, end: weekFromNow })
-        )
-        .map(task => ({
-          date: format(task.date, 'yyyy-MM-dd'),
-          time: task.time || '00:00',
-          title: task.title
-        }))
+      filteredTasks = tasks.filter(task =>
+        isWithinInterval(task.date, { start: now, end: weekFromNow })
+      )
     }
+
+    const responseTasks = filteredTasks.map(task => ({
+      id: task.id,
+      title: task.title,
+      date: format(task.date, 'yyyy-MM-dd'),
+      category: task.category,
+      priority: task.priority,
+      completed: task.completed,
+    }))
 
     await prisma.device.update({
       where: { id: device.id },
@@ -60,7 +58,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       mode: device.mode.toLowerCase(),
-      tasks: filteredTasks
+      tasks: responseTasks
     })
 
   } catch (error) {
