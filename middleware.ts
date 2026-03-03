@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from './lib/auth'
 
-export function proxy(request: NextRequest) { 
+export function middleware(request: NextRequest) { 
   const token = request.cookies.get('token')?.value
   const { pathname } = request.nextUrl
 
