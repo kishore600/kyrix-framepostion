@@ -2,47 +2,84 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from './lib/auth'
 
-export function proxy(request: NextRequest) { 
-  const token = request.cookies.get('token')?.value
-  const { pathname } = request.nextUrl
+// Define public routes more cleanly
+const PUBLIC_PATHS = ['/', '/login', '/register', '/about', '/pricing', '/contact']
+const PUBLIC_API_PATHS = [
+  '/api/auth',
+  '/api/device-sync', 
+  '/api/focus/complete',
+  '/api/device/ping',
+  '/api/health',
+  '/api/public'
+]
 
-  // Public paths - allow access without authentication
-  if (pathname === '/login' || pathname === '/register' || pathname === '/') {
-    // If user is already authenticated and tries to access login/register, redirect to dashboard
+export function proxy(request: NextRequest) {
+  try {
+    const token = request.cookies.get('token')?.value
+    const { pathname } = request.nextUrl
+
+    // Check if it's a public API path
+    const isPublicApiPath = PUBLIC_API_PATHS.some(path => 
+      pathname.startsWith(path)
+    )
+
+    if (isPublicApiPath) {
+      return NextResponse.next()
+    }
+
+    // Check if it's a public page
+    const isPublicPage = PUBLIC_PATHS.some(path => 
+      pathname === path || (path !== '/' && pathname.startsWith(path))
+    )
+
+    // Handle authenticated users on auth pages
     if (token && (pathname === '/login' || pathname === '/register')) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
-    // Allow access to public pages for non-authenticated users
-    return NextResponse.next()
-  }
 
-  // API routes that don't require authentication
-  if (pathname.startsWith('/api/auth') || 
-      pathname.startsWith('/api/device-sync') ||
-      pathname.startsWith('/api/focus/complete') ||
-      pathname.startsWith('/api/device/ping')) {
-    return NextResponse.next()
-  }
+    // Allow access to public pages
+    if (isPublicPage) {
+      return NextResponse.next()
+    }
 
-  // For protected routes, check authentication
-  if (!token) {
-    // Redirect to login if no token
-    const url = new URL('/login', request.url)
-    url.searchParams.set('callbackUrl', pathname)
-    return NextResponse.redirect(url)
-  }
+    // Check authentication for protected routes
+    if (!token) {
+      return redirectToLogin(request, pathname)
+    }
 
-  // Verify the token
-  const payload = verifyToken(token)
-  if (!payload) {
-    // Invalid token - clear it and redirect to login
-    const response = NextResponse.redirect(new URL('/login', request.url))
-    response.cookies.delete('token')
-    return response
-  }
+    // Verify token
+    const payload = verifyToken(token)
+    if (!payload) {
+      return clearTokenAndRedirect(request)
+    }
 
-  // Authenticated - allow access
-  return NextResponse.next()
+    // Optional: Add user info to headers for downstream use
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-user-id', payload.userId)
+
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    })
+
+  } catch (error) {
+    console.error('Middleware error:', error)
+    // In case of error, redirect to login for safety
+    return redirectToLogin(request, request.nextUrl.pathname)
+  }
+}
+
+function redirectToLogin(request: NextRequest, pathname: string) {
+  const url = new URL('/login', request.url)
+  url.searchParams.set('callbackUrl', pathname)
+  return NextResponse.redirect(url)
+}
+
+function clearTokenAndRedirect(request: NextRequest) {
+  const response = NextResponse.redirect(new URL('/login', request.url))
+  response.cookies.delete('token')
+  return response
 }
 
 export const config = {
@@ -53,7 +90,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
+     * - .well-known (for hosting verification, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public/|.well-known).*)',
   ],
 }
