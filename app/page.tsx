@@ -1,8 +1,56 @@
 "use client"
 import Link from 'next/link'
-import { TrendingUp, Clock, Smartphone, Target } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { TrendingUp, Clock, Smartphone, Target, Loader2 } from 'lucide-react'
 
 export default function Home() {
+  const router = useRouter()
+  const [isChecking, setIsChecking] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+
+  useEffect(() => {
+    checkAuthStatus()
+  }, [])
+
+  const checkAuthStatus = async () => {
+    try {
+      // Try to fetch user profile - this will fail if not authenticated
+      const res = await fetch('/api/user/profile')
+      
+      if (res.ok) {
+        // User is authenticated, redirect to dashboard
+        setIsAuthenticated(true)
+        router.push('/dashboard')
+      } else {
+        // User is not authenticated, stay on landing page
+        setIsAuthenticated(false)
+      }
+    } catch (error) {
+      // Error checking auth, stay on landing page
+      setIsAuthenticated(false)
+    } finally {
+      setIsChecking(false)
+    }
+  }
+
+  // Show loading spinner while checking auth
+  if (isChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-gray-900 mx-auto mb-4" />
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render landing page if authenticated (will redirect)
+  if (isAuthenticated) {
+    return null
+  }
+
   const features = [
     {
       icon: Clock,
@@ -115,7 +163,7 @@ export default function Home() {
               }
             ].map((item, i) => (
               <div key={i} className="relative">
-                <div className="text-6xl font-bold text-gray-500 mb-4">{item.step}</div>
+                <div className="text-6xl font-bold text-gray-200 mb-4">{item.step}</div>
                 <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
                 <p className="text-gray-600">{item.description}</p>
               </div>

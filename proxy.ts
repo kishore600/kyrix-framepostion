@@ -2,43 +2,58 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from './lib/auth'
 
-export function proxy(request: NextRequest) {
+export function proxy(request: NextRequest) { 
   const token = request.cookies.get('token')?.value
   const { pathname } = request.nextUrl
 
-  // Public paths
+  // Public paths - allow access without authentication
   if (pathname === '/login' || pathname === '/register' || pathname === '/') {
+    // If user is already authenticated and tries to access login/register, redirect to dashboard
     if (token && (pathname === '/login' || pathname === '/register')) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
+    // Allow access to public pages for non-authenticated users
     return NextResponse.next()
   }
 
   // API routes that don't require authentication
   if (pathname.startsWith('/api/auth') || 
-      pathname.startsWith('/api/device-sync') ||  // Allow device sync without auth
-      pathname.startsWith('/api/focus/complete') || // Allow focus completion
-      pathname.startsWith('/api/device/ping') ||    // Allow device ping
-      pathname.startsWith('/api/tasks/')) {         // Allow task operations (will validate device ID in route)
-    
-    // For task operations, we'll validate the device ID in the route handler
+      pathname.startsWith('/api/device-sync') ||
+      pathname.startsWith('/api/focus/complete') ||
+      pathname.startsWith('/api/device/ping')) {
     return NextResponse.next()
   }
 
-  // Check authentication for protected routes
+  // For protected routes, check authentication
   if (!token) {
+    // Redirect to login if no token
     const url = new URL('/login', request.url)
     url.searchParams.set('callbackUrl', pathname)
     return NextResponse.redirect(url)
   }
 
+  // Verify the token
   const payload = verifyToken(token)
   if (!payload) {
+    // Invalid token - clear it and redirect to login
     const response = NextResponse.redirect(new URL('/login', request.url))
     response.cookies.delete('token')
     return response
   }
 
+  // Authenticated - allow access
   return NextResponse.next()
 }
 
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+  ],
+}
