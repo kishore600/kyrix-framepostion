@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,39 +7,102 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  tasks     Task[]
-  devices   Device[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  password            String
+
+  // Keep name optional so existing data isn't lost
+  name                String?
+
+  personalityMode     PersonalityMode @default(BALANCED)
+
+  deviceId            String?   @unique
+  devicePairedAt      DateTime?
+
+  // Growth metrics
+  growthIndex         Float     @default(0)
+  streakCount         Int       @default(0)
+  stabilityScore      Float     @default(0)
+  lastFocusTimestamp  DateTime?
+  missedDays          Int       @default(0)
+  totalFocusMinutes   Int       @default(0)
+
+  // Settings
+  focusLength         Int       @default(25)
+  breakDuration       Int       @default(5)
+  autoRepeatCycles    Boolean   @default(false)
+  streakTracking      Boolean   @default(true)
+  autoStartBreaks     Boolean   @default(false)
+
+  tasks               Task[]
+  focusSessions       FocusSession[]
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 model Task {
-  id        String   @id @default(cuid())
-  title     String
-  date      DateTime
-  time      String?
-  category  Category @default(OTHER)
-  priority  Priority @default(MEDIUM)
-  completed Boolean  @default(false)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String        @id @default(cuid())
+  title                String
+  category             Category      @default(OTHER)
+  priority             Priority      @default(MEDIUM)
+  dueDate              DateTime
+  estimatedEffort      Int
+  isRecurring          Boolean       @default(false)
+
+  recurrenceType       RecurrenceType?
+  recurrenceInterval   Int?
+  recurrenceDayOfWeek  Int?
+  recurrenceDayOfMonth Int?
+  recurrenceEndDate    DateTime?
+  recurrenceCount      Int?
+
+  completed            Boolean       @default(false)
+  completedAt          DateTime?
+
+  userId               String
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  focusSessions        FocusSession[]
+
+  // ✅ ADD THIS (missing relation)
+  recurringRule        RecurringRule?
+
+  parentTaskId         String?
+  parentTask           Task?         @relation("TaskInstances", fields: [parentTaskId], references: [id])
+  instances            Task[]        @relation("TaskInstances")
+
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 }
 
-model Device {
-  id         String   @id @default(cuid())
-  deviceCode String   @unique
-  mode       Mode     @default(TODAY)
-  lastSync   DateTime?
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+model RecurringRule {
+  id          String        @id @default(cuid())
+  taskId      String        @unique
+  task        Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  frequency   RecurrenceType
+  interval    Int?
+  dayOfWeek   Int?
+  dayOfMonth  Int?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model FocusSession {
+  id          String   @id @default(cuid())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  duration    Int
+  completedAt DateTime
+
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime @default(now())
 }
 
 enum Category {
@@ -61,7 +118,16 @@ enum Priority {
   HIGH
 }
 
-enum Mode {
-  TODAY
-  WEEK
+enum PersonalityMode {
+  BALANCED
+  AMBITIOUS
+  FLOW
+}
+
+enum RecurrenceType {
+  DAILY
+  WEEKDAYS
+  WEEKLY
+  MONTHLY
+  CUSTOM
 }

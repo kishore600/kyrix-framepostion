@@ -1,4 +1,3 @@
-// app/dashboard/layout.tsx
 'use client'
 
 import { useState } from 'react'
@@ -12,7 +11,9 @@ import {
   Smartphone, 
   LogOut,
   Menu,
-  X
+  X,
+  TrendingUp,
+  Settings
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -21,6 +22,8 @@ const menuItems = [
   { href: '/dashboard/week', icon: Calendar, label: '7-Day View' },
   { href: '/dashboard/add-task', icon: PlusCircle, label: 'Add Task' },
   { href: '/dashboard/device', icon: Smartphone, label: 'Device' },
+  { href: '/dashboard/momentum', icon: TrendingUp, label: 'Momentum' },
+  { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
 ]
 
 export default function DashboardLayout({

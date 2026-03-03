@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable react/no-unescaped-entities */
-// app/login/page.tsx
 'use client'
 
 import { useState } from 'react'
@@ -10,95 +7,98 @@ import toast from 'react-hot-toast'
 
 export default function LoginPage() {
   const router = useRouter()
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   })
 
-// app/login/page.tsx
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
 
-  try {
-    console.log('1. Sending login request...')
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    })
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      })
 
-    console.log('2. Response status:', res.status)
-    console.log('3. Response headers:', Object.fromEntries(res.headers.entries()))
-    
-    const data = await res.json()
-    console.log('4. Response data:', data)
+      const data = await res.json()
 
-    if (!res.ok) {
-      throw new Error(data.error || 'Login failed')
+      if (!res.ok) {
+        throw new Error(data.error || 'Login failed')
+      }
+
+      toast.success('Logged in successfully!')
+      router.push('/dashboard')
+    } catch (error: any) {
+      toast.error(error.message)
+    } finally {
+      setLoading(false)
     }
-
-    console.log('5. Login successful, checking cookies...')
-    // Check if cookie was set
-    console.log('6. Document cookie:', document.cookie)
-    
-    toast.success('Logged in successfully!')
-    
-    // Force a hard redirect to ensure cookies are sent
-    window.location.href = '/dashboard'
-  } catch (error: any) {
-    console.error('Login error:', error)
-    toast.error(error.message)
   }
-}
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold">Welcome back</h2>
-          <p className="text-gray-600 mt-2">Log in to your account</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Sign in to your account
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Or{' '}
+            <Link href="/register" className="font-medium text-gray-900 hover:text-gray-700">
+              create a new account
+            </Link>
+          </p>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
-            />
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="email" className="sr-only">
+                Email address
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-gray-900 focus:border-gray-900 focus:z-10 sm:text-sm"
+                placeholder="Email address"
+                value={formData.email}
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-gray-900 focus:border-gray-900 focus:z-10 sm:text-sm"
+                placeholder="Password"
+                value={formData.password}
+                onChange={(e) => setFormData({...formData, password: e.target.value})}
+              />
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              value={formData.password}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
-            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50"
+            >
+              {loading ? 'Signing in...' : 'Sign in'}
+            </button>
           </div>
-
-          <button
-            type="submit"
-            className="w-full bg-gray-900 text-white py-2 px-4 rounded-lg hover:bg-gray-800 transition"
-          >
-            Log in
-          </button>
         </form>
-
-        <p className="text-center text-gray-600">
-          Don't have an account?{' '}
-          <Link href="/register" className="text-gray-900 font-medium hover:underline">
-            Sign up
-          </Link>
-        </p>
       </div>
     </div>
   )

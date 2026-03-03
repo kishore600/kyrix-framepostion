@@ -1,75 +1,100 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/tasks/[id]/route.ts
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
+import { addDays, setHours, setMinutes } from 'date-fns'
+
+function getNextDueDate(rule: any, currentDate: Date) {
+  switch (rule.frequency) {
+    case 'DAILY':
+      return addDays(currentDate, 1)
+    case 'WEEKDAYS': {
+      const next = addDays(currentDate, 1)
+      while (next.getDay() === 0 || next.getDay() === 6) {
+        next.setDate(next.getDate() + 1)
+      }
+      return next
+    }
+    case 'WEEKLY': {
+      const next = addDays(currentDate, 1)
+      while (next.getDay() !== rule.dayOfWeek) {
+        next.setDate(next.getDate() + 1)
+      }
+      return next
+    }
+    case 'MONTHLY': {
+      const next = new Date(currentDate)
+      next.setMonth(next.getMonth() + 1)
+      next.setDate(rule.dayOfMonth)
+      return next
+    }
+    case 'CUSTOM':
+      return addDays(currentDate, rule.interval || 1)
+    default:
+      return null
+  }
+}
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await the params
+    const { id } = await params
+    
     const user = await getCurrentUser()
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = await params // Await params
-    const { completed } = await request.json()
+    const body = await request.json()
+    
+    if (!id) {
+      return NextResponse.json({ error: 'Task ID is required' }, { status: 400 })
+    }
 
-    const task = await prisma.task.update({
-      where: {
-        id: id,
-        userId: user.userId
-      },
-      data: { completed }
+    const task = await prisma.task.findUnique({
+      where: { id },
+      include: { recurringRule: true }
     })
 
-    return NextResponse.json(task)
-  } catch (error) {
-    console.error('Update task error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+    if (!task || task.userId !== user.id) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
 
-    const { id } = await params // Await params
-    const { title, date, time } = await request.json()
-
-    if (!title || !date) {
-      return NextResponse.json(
-        { error: 'Title and date are required' },
-        { status: 400 }
-      )
+    // Handle task completion
+    if (body.completed === true && task.isRecurring && task.recurringRule) {
+      // Create next instance of recurring task
+      const nextDueDate = getNextDueDate(task.recurringRule, new Date())
+      
+      if (nextDueDate) {
+        await prisma.task.create({
+          data: {
+            title: task.title,
+            category: task.category,
+            priority: task.priority,
+            dueDate: nextDueDate,
+            estimatedEffort: task.estimatedEffort,
+            isRecurring: true,
+            userId: user.id,
+            recurringRule: {
+              create: {
+                frequency: task.recurringRule.frequency,
+                interval: task.recurringRule.interval,
+                dayOfWeek: task.recurringRule.dayOfWeek,
+                dayOfMonth: task.recurringRule.dayOfMonth
+              }
+            }
+          }
+        })
+      }
     }
 
     const updatedTask = await prisma.task.update({
-      where: {
-        id: id,
-        userId: user.userId
-      },
+      where: { id },
       data: {
-        title,
-        date: new Date(date),
-        time: time || null
+        ...body,
+        ...(body.completed && { completedAt: new Date() })
       }
     })
 
@@ -82,32 +107,75 @@ export async function PUT(
     )
   }
 }
+
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> } 
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await the params
+    const { id } = await params
+    
     const user = await getCurrentUser()
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = await params
-    console.log('Deleting task with ID:', id)
+    if (!id) {
+      return NextResponse.json({ error: 'Task ID is required' }, { status: 400 })
+    }
 
-    await prisma.task.delete({
-      where: {
-        id: id, // Use the unwrapped id
-        userId: user.userId
-      }
+    const task = await prisma.task.findUnique({
+      where: { id }
     })
 
-    return NextResponse.json({ success: true })
+    if (!task || task.userId !== user.id) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+    }
+
+    await prisma.task.delete({
+      where: { id }
+    })
+
+    return NextResponse.json({ message: 'Task deleted successfully' })
   } catch (error) {
     console.error('Delete task error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// Also add GET handler for single task if needed
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: 'Task ID is required' }, { status: 400 })
+    }
+
+    const task = await prisma.task.findUnique({
+      where: { id },
+      include: { recurringRule: true }
+    })
+
+    if (!task || task.userId !== user.id) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+    }
+
+    return NextResponse.json(task)
+  } catch (error) {
+    console.error('Fetch task error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

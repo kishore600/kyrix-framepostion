@@ -1,29 +1,40 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/device/route.ts
-
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
+import { generateDeviceCode } from '@/lib/utils'
 
 export async function GET() {
   try {
-    const user: any = await getCurrentUser()   // ✅ FIXED
-
+    const user = await getCurrentUser()
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const device = await prisma.device.findFirst({
-      where: { userId: user.userId }
+    // If user has no device ID, generate one
+    if (!user.deviceId) {
+      const newDeviceId = generateDeviceCode()
+      const updatedUser = await prisma.user.update({
+        where: { id: user.id },
+        data: { 
+          deviceId: newDeviceId,
+          devicePairedAt: new Date()
+        }
+      })
+      
+      return NextResponse.json({
+        deviceId: updatedUser.deviceId,
+        pairedAt: updatedUser.devicePairedAt,
+        mode: updatedUser.personalityMode
+      })
+    }
+
+    return NextResponse.json({
+      deviceId: user.deviceId,
+      pairedAt: user.devicePairedAt,
+      mode: user.personalityMode
     })
-
-    return NextResponse.json(device)
-
   } catch (error) {
-    console.error('Get device error:', error)
+    console.error('Fetch device error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -33,46 +44,29 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user: any = await getCurrentUser()   // ✅ FIXED
-
+    const user = await getCurrentUser()
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { deviceCode } = await request.json()
 
-    if (!deviceCode) {
-      return NextResponse.json(
-        { error: 'Device code is required' },
-        { status: 400 }
-      )
-    }
+    // Generate a new device ID (in production, validate deviceCode first)
+    const newDeviceId = generateDeviceCode()
 
-    // Check if device code already exists
-    const existingDevice = await prisma.device.findUnique({
-      where: { deviceCode }
-    })
-
-    if (existingDevice) {
-      return NextResponse.json(
-        { error: 'Device code already in use' },
-        { status: 400 }
-      )
-    }
-
-    const device = await prisma.device.create({
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
       data: {
-        deviceCode,
-        userId: user.userId,
-        mode: 'TODAY'   // optional but explicit
+        deviceId: newDeviceId,
+        devicePairedAt: new Date()
       }
     })
 
-    return NextResponse.json(device)
-
+    return NextResponse.json({
+      deviceId: updatedUser.deviceId,
+      pairedAt: updatedUser.devicePairedAt,
+      mode: updatedUser.personalityMode
+    })
   } catch (error) {
     console.error('Pair device error:', error)
     return NextResponse.json(

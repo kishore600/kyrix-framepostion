@@ -1,105 +1,199 @@
-// app/api/tasks/route.ts
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
+import { addDays, addWeeks, addMonths, setDate, getDay } from 'date-fns'
 
+function getNextRecurringDate(task: any, fromDate: Date = new Date()): Date | null {
+  const baseDate = new Date(task.dueDate)
+  
+  switch (task.recurrenceType) {
+    case 'DAILY':
+      return addDays(fromDate, 1)
+    
+    case 'WEEKDAYS': {
+      let nextDate = addDays(fromDate, 1)
+      while (nextDate.getDay() === 0 || nextDate.getDay() === 6) {
+        nextDate = addDays(nextDate, 1)
+      }
+      return nextDate
+    }
+    
+    case 'WEEKLY': {
+      const targetDay = task.recurrenceDayOfWeek
+      let nextDate = addDays(fromDate, 1)
+      while (getDay(nextDate) !== targetDay) {
+        nextDate = addDays(nextDate, 1)
+      }
+      return nextDate
+    }
+    
+    case 'MONTHLY': {
+      const targetDay = Math.min(task.recurrenceDayOfMonth, 28) // Avoid invalid dates
+      let nextDate = addMonths(fromDate, 1)
+      nextDate = setDate(nextDate, targetDay)
+      return nextDate
+    }
+    
+    case 'CUSTOM':
+      return addDays(fromDate, task.recurrenceInterval || 1)
+    
+    default:
+      return null
+  }
+}
+
+// GET handler - Fetch all tasks
 export async function GET() {
   try {
     const user = await getCurrentUser()
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    console.log('Fetching tasks for user:', user.userId)
-
     const tasks = await prisma.task.findMany({
-      where: { userId: user.userId },
-      orderBy: { date: 'asc' }
+      where: { 
+        userId: user.id 
+      },
+      orderBy: [
+        { dueDate: 'asc' },
+        { priority: 'desc' }
+      ]
     })
 
-    console.log(`Found ${tasks.length} tasks`)
     return NextResponse.json(tasks)
   } catch (error) {
-    console.error('Get tasks error:', error)
+    console.error('Fetch tasks error:', error)
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to fetch tasks' },
       { status: 500 }
     )
   }
 }
 
+// POST handler - Create a new task
 export async function POST(request: Request) {
   try {
-    // Get the current user
     const user = await getCurrentUser()
-    console.log('Current user from token:', user)
-
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized - No user found' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Parse request body
     const body = await request.json()
-    console.log('Request body:', body)
-
-    const { title, date, time, category, priority } = body
+    const { 
+      title, 
+      category, 
+      priority, 
+      dueDate, 
+      estimatedEffort,
+      isRecurring,
+      recurrenceType,
+      recurrenceInterval,
+      recurrenceDayOfWeek,
+      recurrenceDayOfMonth,
+      recurrenceEndDate,
+      recurrenceCount
+    } = body
 
     // Validate required fields
-    if (!title || !date) {
+    if (!title || !dueDate) {
       return NextResponse.json(
-        { error: 'Title and date are required' },
+        { error: 'Title and due date are required' },
         { status: 400 }
       )
     }
 
-    // Validate category
-    const validCategories = ['WORK', 'STUDY', 'PERSONAL', 'OTHER']
-    const taskCategory = validCategories.includes(category) ? category : 'OTHER'
-
-    // Validate priority
-    const validPriorities = ['LOW', 'MEDIUM', 'HIGH']
-    const taskPriority = validPriorities.includes(priority) ? priority : 'MEDIUM'
-
-    // Check if user exists in database
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.userId }
-    })
-
-    if (!dbUser) {
-      console.error('User not found in database:', user.userId)
+    // Parse dates properly
+    const parsedDueDate = new Date(dueDate)
+    if (isNaN(parsedDueDate.getTime())) {
       return NextResponse.json(
-        { error: 'User not found in database' },
-        { status: 404 }
+        { error: 'Invalid due date format' },
+        { status: 400 }
       )
     }
 
-    console.log('Found user in database:', dbUser.id)
+    // Parse recurrence end date if provided and valid
+    let parsedRecurrenceEndDate = null
+    if (recurrenceEndDate && recurrenceEndDate.trim() !== '') {
+      parsedRecurrenceEndDate = new Date(recurrenceEndDate)
+      if (isNaN(parsedRecurrenceEndDate.getTime())) {
+        return NextResponse.json(
+          { error: 'Invalid recurrence end date format' },
+          { status: 400 }
+        )
+      }
+    }
 
-    // Create task
+    // Create the parent task
     const task = await prisma.task.create({
       data: {
         title,
-        date: new Date(date),
-        time: time || null,
-        category: taskCategory,
-        priority: taskPriority,
-        completed: false,
-        userId: user.userId
+        category: category || 'OTHER',
+        priority: priority || 'MEDIUM',
+        dueDate: parsedDueDate,
+        estimatedEffort: estimatedEffort ? parseInt(estimatedEffort) : 25,
+        isRecurring: isRecurring || false,
+        recurrenceType: isRecurring ? recurrenceType : null,
+        recurrenceInterval: isRecurring && recurrenceInterval ? parseInt(recurrenceInterval) : null,
+        recurrenceDayOfWeek: isRecurring && recurrenceDayOfWeek ? parseInt(recurrenceDayOfWeek) : null,
+        recurrenceDayOfMonth: isRecurring && recurrenceDayOfMonth ? parseInt(recurrenceDayOfMonth) : null,
+        recurrenceEndDate: parsedRecurrenceEndDate,
+        recurrenceCount: isRecurring && recurrenceCount ? parseInt(recurrenceCount) : null,
+        userId: user.id
       }
     })
 
-    console.log('Task created successfully:', task)
-    return NextResponse.json(task)
+    // If it's recurring and has an end date or count, pre-create instances
+    if (isRecurring && (parsedRecurrenceEndDate || recurrenceCount)) {
+      const instances = []
+      let currentDate = parsedDueDate
+      let count = 1
+      const maxCount = recurrenceCount ? parseInt(recurrenceCount) : 100
+      
+      while (count < maxCount) {
+        const nextDate = getNextRecurringDate({
+          ...task,
+          recurrenceType,
+          recurrenceInterval: recurrenceInterval ? parseInt(recurrenceInterval) : null,
+          recurrenceDayOfWeek: recurrenceDayOfWeek ? parseInt(recurrenceDayOfWeek) : null,
+          recurrenceDayOfMonth: recurrenceDayOfMonth ? parseInt(recurrenceDayOfMonth) : null
+        }, currentDate)
+
+        if (!nextDate) break
+        if (parsedRecurrenceEndDate && nextDate > parsedRecurrenceEndDate) break
+
+        instances.push({
+          title,
+          category: category || 'OTHER',
+          priority: priority || 'MEDIUM',
+          dueDate: nextDate,
+          estimatedEffort: estimatedEffort ? parseInt(estimatedEffort) : 25,
+          isRecurring: true,
+          recurrenceType,
+          recurrenceInterval: recurrenceInterval ? parseInt(recurrenceInterval) : null,
+          recurrenceDayOfWeek: recurrenceDayOfWeek ? parseInt(recurrenceDayOfWeek) : null,
+          recurrenceDayOfMonth: recurrenceDayOfMonth ? parseInt(recurrenceDayOfMonth) : null,
+          recurrenceEndDate: parsedRecurrenceEndDate,
+          recurrenceCount,
+          userId: user.id,
+          parentTaskId: task.id
+        })
+
+        currentDate = nextDate
+        count++
+      }
+
+      if (instances.length > 0) {
+        await prisma.task.createMany({
+          data: instances
+        })
+      }
+    }
+
+    return NextResponse.json(task, { status: 201 })
   } catch (error) {
     console.error('Create task error:', error)
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to create task' },
       { status: 500 }
     )
   }

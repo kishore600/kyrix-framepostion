@@ -1,22 +1,19 @@
-// app/api/auth/register/route.ts
 import { NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
-import { signJWT, setSessionToken } from '@/lib/auth'
+import { hashPassword } from '@/lib/auth'
+import { generateDeviceCode } from '@/lib/utils'
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password } = await request.json()
+    const { email, password, personalityMode } = await request.json()
 
-    // Validate input
-    if (!name || !email || !password) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Email and password required' },
         { status: 400 }
       )
     }
 
-    // Check if user exists
     const existingUser = await prisma.user.findUnique({
       where: { email }
     })
@@ -28,34 +25,21 @@ export async function POST(request: Request) {
       )
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10)
+    const hashedPassword = await hashPassword(password)
+    const deviceId = generateDeviceCode()
 
-    // Create user
     const user = await prisma.user.create({
       data: {
-        name,
         email,
-        password: hashedPassword
+        password: hashedPassword,
+        personalityMode,
+        deviceId
       }
     })
-
-    // Create JWT
-    const token = signJWT({
-      userId: user.id,
-      email: user.email,
-      name: user.name
-    })
-
-    // Set cookie
-    setSessionToken(token)
 
     return NextResponse.json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email
-      }
+      message: 'User created successfully',
+      deviceId: user.deviceId
     })
   } catch (error) {
     console.error('Registration error:', error)

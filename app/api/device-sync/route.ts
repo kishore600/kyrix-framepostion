@@ -1,8 +1,6 @@
-// app/api/device-sync/route.ts
-
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { format, isToday, isWithinInterval, addDays } from 'date-fns'
+import { startOfDay, endOfDay } from 'date-fns'
 
 export async function GET(request: Request) {
   try {
@@ -10,59 +8,82 @@ export async function GET(request: Request) {
     const deviceId = searchParams.get('device_id')
 
     if (!deviceId) {
-      return NextResponse.json({ error: 'Device ID required' }, { status: 400 })
-    }
-
-    const device = await prisma.device.findUnique({
-      where: { deviceCode: deviceId },
-    })
-
-    if (!device) {
-      return NextResponse.json({ error: 'Device not found' }, { status: 404 })
-    }
-
-    const now = new Date()
-    const weekFromNow = addDays(now, 7)
-
-    let tasks = await prisma.task.findMany({
-      where: {
-        userId: device.userId,
-        completed: false
-      },
-      orderBy: { date: 'asc' }
-    })
-
-    let filteredTasks = []
-
-    if (device.mode === 'TODAY') {
-      filteredTasks = tasks.filter(task => isToday(task.date))
-    } else {
-      filteredTasks = tasks.filter(task =>
-        isWithinInterval(task.date, { start: now, end: weekFromNow })
+      return NextResponse.json(
+        { error: 'Device ID required' },
+        { status: 400 }
       )
     }
 
-    const responseTasks = filteredTasks.map(task => ({
-      id: task.id,
-      title: task.title,
-      date: format(task.date, 'yyyy-MM-dd'),
-      category: task.category,
-      priority: task.priority,
-      completed: task.completed,
-    }))
+    const user = await prisma.user.findFirst({
+      where: { deviceId }
+    })
 
-    await prisma.device.update({
-      where: { id: device.id },
-      data: { lastSync: new Date() }
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Device not found' },
+        { status: 404 }
+      )
+    }
+
+    // Get today's tasks
+    const today = new Date()
+    const tasks = await prisma.task.findMany({
+      where: {
+        userId: user.id,
+        dueDate: {
+          gte: startOfDay(today),
+          lte: endOfDay(today)
+        },
+        completed: false
+      },
+      orderBy: [
+        { priority: 'desc' },
+        { dueDate: 'asc' }
+      ],
+      take: 10 // Limit for ESP32 display
+    })
+
+    // Get user settings
+    const settings = {
+      focusLength: user.focusLength,
+      breakDuration: user.breakDuration,
+      autoRepeatCycles: user.autoRepeatCycles,
+      streakTracking: user.streakTracking,
+      autoStartBreaks: user.autoStartBreaks,
+      personalityMode: user.personalityMode
+    }
+
+    // Get growth state
+    const growthState = {
+      growthIndex: user.growthIndex,
+      streakCount: user.streakCount,
+      stabilityScore: user.stabilityScore,
+      lastFocusTimestamp: user.lastFocusTimestamp,
+      missedDays: user.missedDays
+    }
+
+    // Update last sync time
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { updatedAt: new Date() }
     })
 
     return NextResponse.json({
-      mode: device.mode.toLowerCase(),
-      tasks: responseTasks
+      tasks: tasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        priority: t.priority,
+        estimatedEffort: t.estimatedEffort
+      })),
+      settings,
+      growthState,
+      timestamp: new Date().toISOString()
     })
-
   } catch (error) {
     console.error('Device sync error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }

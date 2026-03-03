@@ -8,16 +8,18 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import { format, parseISO, isSameDay } from 'date-fns'
 import toast from 'react-hot-toast'
-import { CheckCircle, Circle, Clock, Calendar, X, Edit2 } from 'lucide-react'
+import { CheckCircle, Circle, Clock, Calendar, X, Edit2, RotateCcw } from 'lucide-react'
 
 interface Task {
   id: string
   title: string
-  date: string
-  time?: string | null
+  dueDate: string  // Changed from 'date' to 'dueDate'
+  dueTime?: string | null  // Changed from 'time' to 'dueTime'
   category: string
   priority: string
   completed: boolean
+  estimatedEffort?: number
+  isRecurring?: boolean
 }
 
 export default function WeekViewPage() {
@@ -28,19 +30,25 @@ export default function WeekViewPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [editForm, setEditForm] = useState({
     title: '',
-    date: '',
-    time: ''
+    dueDate: '',  // Changed from 'date' to 'dueDate'
+    dueTime: ''   // Changed from 'time' to 'dueTime'
   })
 
   const fetchTasks = async () => {
     try {
       setLoading(true)
       const res = await fetch('/api/tasks')
-      if (!res.ok) throw new Error('Failed to fetch')
+      
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to fetch')
+      }
+      
       const data = await res.json()
       setTasks(data)
-    } catch (error) {
-      toast.error('Failed to fetch tasks')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to fetch tasks')
+      console.error('Fetch error:', error)
     } finally {
       setLoading(false)
     }
@@ -52,9 +60,14 @@ export default function WeekViewPage() {
 
   const handleDateClick = (arg: { date: Date }) => {
     setSelectedDate(arg.date)
-    const tasksForDate = tasks.filter(task => 
-      isSameDay(parseISO(task.date), arg.date)
-    )
+    const tasksForDate = tasks.filter(task => {
+      if (!task.dueDate) return false
+      try {
+        return isSameDay(parseISO(task.dueDate), arg.date)
+      } catch {
+        return false
+      }
+    })
     setSelectedDateTasks(tasksForDate)
   }
 
@@ -66,7 +79,10 @@ export default function WeekViewPage() {
         body: JSON.stringify({ completed: !currentStatus })
       })
 
-      if (!res.ok) throw new Error('Failed to update task')
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to update task')
+      }
 
       // Update local state
       setTasks(prev => prev.map(task => 
@@ -78,9 +94,9 @@ export default function WeekViewPage() {
         task.id === taskId ? { ...task, completed: !currentStatus } : task
       ))
 
-      toast.success('Task updated')
-    } catch (error) {
-      toast.error('Failed to update task')
+      toast.success(currentStatus ? 'Task uncompleted' : 'Task completed')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update task')
     }
   }
 
@@ -92,15 +108,18 @@ export default function WeekViewPage() {
         method: 'DELETE'
       })
 
-      if (!res.ok) throw new Error('Failed to delete task')
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to delete task')
+      }
 
       // Update local state
       setTasks(prev => prev.filter(task => task.id !== taskId))
       setSelectedDateTasks(prev => prev.filter(task => task.id !== taskId))
 
       toast.success('Task deleted')
-    } catch (error) {
-      toast.error('Failed to delete task')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete task')
     }
   }
 
@@ -108,14 +127,14 @@ export default function WeekViewPage() {
     setEditingTask(task)
     setEditForm({
       title: task.title,
-      date: task.date.split('T')[0],
-      time: task.time || ''
+      dueDate: task.dueDate.split('T')[0],
+      dueTime: task.dueTime || ''
     })
   }
 
   const cancelEditing = () => {
     setEditingTask(null)
-    setEditForm({ title: '', date: '', time: '' })
+    setEditForm({ title: '', dueDate: '', dueTime: '' })
   }
 
   const updateTask = async (e: React.FormEvent) => {
@@ -123,17 +142,27 @@ export default function WeekViewPage() {
     if (!editingTask) return
 
     try {
+      // Combine date and time
+      let dueDate = new Date(editForm.dueDate)
+      if (editForm.dueTime) {
+        const [hours, minutes] = editForm.dueTime.split(':')
+        dueDate.setHours(parseInt(hours), parseInt(minutes))
+      }
+
       const res = await fetch(`/api/tasks/${editingTask.id}`, {
-        method: 'PUT',
+        method: 'PATCH',  // Changed from PUT to PATCH to match API
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: editForm.title,
-          date: editForm.date,
-          time: editForm.time || null
+          dueDate: dueDate.toISOString(),
+          dueTime: editForm.dueTime || null
         })
       })
 
-      if (!res.ok) throw new Error('Failed to update task')
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to update task')
+      }
 
       const updatedTask = await res.json()
 
@@ -149,37 +178,43 @@ export default function WeekViewPage() {
 
       toast.success('Task updated successfully')
       cancelEditing()
-    } catch (error) {
-      toast.error('Failed to update task')
+      
+      // Refresh tasks to ensure consistency
+      fetchTasks()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update task')
     }
   }
 
-  const events = tasks.map(task => ({
-    title: task.title,
-    date: task.date.split('T')[0],
-    backgroundColor: task.completed ? '#10b981' : '#3b82f6',
-    borderColor: 'transparent',
-    textColor: '#ffffff',
-    extendedProps: {
-      task
-    }
-  }))
+  // Safely create events for calendar
+  const events = tasks
+    .filter(task => task.dueDate) // Only include tasks with dueDate
+    .map(task => ({
+      title: task.title,
+      date: task.dueDate.split('T')[0],
+      backgroundColor: task.completed ? '#10b981' : '#3b82f6',
+      borderColor: 'transparent',
+      textColor: '#ffffff',
+      extendedProps: {
+        task
+      }
+    }))
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'HIGH': return 'text-red-600 bg-red-50'
-      case 'MEDIUM': return 'text-yellow-600 bg-yellow-50'
-      case 'LOW': return 'text-green-600 bg-green-50'
-      default: return 'text-gray-600 bg-gray-50'
+      case 'HIGH': return 'text-red-600 bg-red-50 border-red-100'
+      case 'MEDIUM': return 'text-yellow-600 bg-yellow-50 border-yellow-100'
+      case 'LOW': return 'text-green-600 bg-green-50 border-green-100'
+      default: return 'text-gray-600 bg-gray-50 border-gray-100'
     }
   }
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'WORK': return 'text-blue-600 bg-blue-50'
-      case 'STUDY': return 'text-purple-600 bg-purple-50'
-      case 'PERSONAL': return 'text-green-600 bg-green-50'
-      default: return 'text-gray-600 bg-gray-50'
+      case 'WORK': return 'text-blue-600 bg-blue-50 border-blue-100'
+      case 'STUDY': return 'text-purple-600 bg-purple-50 border-purple-100'
+      case 'PERSONAL': return 'text-green-600 bg-green-50 border-green-100'
+      default: return 'text-gray-600 bg-gray-50 border-gray-100'
     }
   }
 
@@ -275,15 +310,15 @@ export default function WeekViewPage() {
                       <div className="flex gap-3">
                         <input
                           type="date"
-                          value={editForm.date}
-                          onChange={(e) => setEditForm({...editForm, date: e.target.value})}
+                          value={editForm.dueDate}
+                          onChange={(e) => setEditForm({...editForm, dueDate: e.target.value})}
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           required
                         />
                         <input
                           type="time"
-                          value={editForm.time}
-                          onChange={(e) => setEditForm({...editForm, time: e.target.value})}
+                          value={editForm.dueTime}
+                          onChange={(e) => setEditForm({...editForm, dueTime: e.target.value})}
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
@@ -318,25 +353,36 @@ export default function WeekViewPage() {
                         </button>
                         
                         <div className="flex-1">
-                          <p className={`text-gray-900 font-medium ${task.completed ? 'line-through text-gray-400' : ''}`}>
-                            {task.title}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className={`text-gray-900 font-medium ${task.completed ? 'line-through text-gray-400' : ''}`}>
+                              {task.title}
+                            </p>
+                            {task.isRecurring && (
+                              <RotateCcw className="w-4 h-4 text-gray-400" />
+                            )}
+                          </div>
                           
                           <div className="flex items-center gap-3 mt-2">
-                            {task.time && (
+                            {task.dueTime && (
                               <span className="flex items-center gap-1 text-sm text-gray-500">
                                 <Clock className="w-4 h-4" />
-                                {task.time}
+                                {task.dueTime}
                               </span>
                             )}
                             
-                            <span className={`text-xs px-2 py-1 rounded-full ${getCategoryColor(task.category)}`}>
+                            <span className={`text-xs px-2 py-1 rounded-full border ${getCategoryColor(task.category)}`}>
                               {task.category}
                             </span>
                             
-                            <span className={`text-xs px-2 py-1 rounded-full ${getPriorityColor(task.priority)}`}>
+                            <span className={`text-xs px-2 py-1 rounded-full border ${getPriorityColor(task.priority)}`}>
                               {task.priority}
                             </span>
+
+                            {task.estimatedEffort && (
+                              <span className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-full border border-gray-100">
+                                {task.estimatedEffort} min
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
