@@ -350,7 +350,6 @@ const handleSubmit = async (e: React.FormEvent) => {
 
                   {/* End Options */}
                   <div className="border-t pt-4 mt-4">
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">End Options</h3>
                     
                     <div className="space-y-3">
                       <div>

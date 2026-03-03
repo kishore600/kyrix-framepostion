@@ -19,7 +19,7 @@ import toast from 'react-hot-toast'
 
 const menuItems = [
   { href: '/dashboard', icon: Home, label: 'Today' },
-  { href: '/dashboard/week', icon: Calendar, label: '7-Day View' },
+  { href: '/dashboard/view', icon: Calendar, label: 'Task View' },
   { href: '/dashboard/add-task', icon: PlusCircle, label: 'Add Task' },
   { href: '/dashboard/device', icon: Smartphone, label: 'Device' },
   { href: '/dashboard/momentum', icon: TrendingUp, label: 'Momentum' },

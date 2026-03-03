@@ -15,7 +15,13 @@ export function proxy(request: NextRequest) {
   }
 
   // API routes that don't require authentication
-  if (pathname.startsWith('/api/auth')) {
+  if (pathname.startsWith('/api/auth') || 
+      pathname.startsWith('/api/device-sync') ||  // Allow device sync without auth
+      pathname.startsWith('/api/focus/complete') || // Allow focus completion
+      pathname.startsWith('/api/device/ping') ||    // Allow device ping
+      pathname.startsWith('/api/tasks/')) {         // Allow task operations (will validate device ID in route)
+    
+    // For task operations, we'll validate the device ID in the route handler
     return NextResponse.next()
   }
 
@@ -38,6 +44,13 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
   ],
 }
