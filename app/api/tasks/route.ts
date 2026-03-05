@@ -94,6 +94,8 @@ export async function POST(request: Request) {
       recurrenceCount
     } = body
 
+    console.log('Received task data:', body) // Debug log
+
     // Validate required fields
     if (!title || !dueDate) {
       return NextResponse.json(
@@ -123,6 +125,11 @@ export async function POST(request: Request) {
       }
     }
 
+    // Ensure estimatedEffort is a number
+    const effortValue = estimatedEffort !== undefined && estimatedEffort !== null 
+      ? Number(estimatedEffort) 
+      : 25
+
     // Create the parent task
     const task = await prisma.task.create({
       data: {
@@ -130,32 +137,34 @@ export async function POST(request: Request) {
         category: category || 'OTHER',
         priority: priority || 'MEDIUM',
         dueDate: parsedDueDate,
-        estimatedEffort: estimatedEffort ? parseInt(estimatedEffort) : 25,
+        estimatedEffort: effortValue, // Already a number
         isRecurring: isRecurring || false,
         recurrenceType: isRecurring ? recurrenceType : null,
-        recurrenceInterval: isRecurring && recurrenceInterval ? parseInt(recurrenceInterval) : null,
-        recurrenceDayOfWeek: isRecurring && recurrenceDayOfWeek ? parseInt(recurrenceDayOfWeek) : null,
-        recurrenceDayOfMonth: isRecurring && recurrenceDayOfMonth ? parseInt(recurrenceDayOfMonth) : null,
+        recurrenceInterval: isRecurring && recurrenceInterval ? Number(recurrenceInterval) : null,
+        recurrenceDayOfWeek: isRecurring && recurrenceDayOfWeek !== undefined ? Number(recurrenceDayOfWeek) : null,
+        recurrenceDayOfMonth: isRecurring && recurrenceDayOfMonth ? Number(recurrenceDayOfMonth) : null,
         recurrenceEndDate: parsedRecurrenceEndDate,
-        recurrenceCount: isRecurring && recurrenceCount ? parseInt(recurrenceCount) : null,
+        recurrenceCount: isRecurring && recurrenceCount ? Number(recurrenceCount) : null,
         userId: user.id
       }
     })
+
+    console.log('Created task:', task) // Debug log
 
     // If it's recurring and has an end date or count, pre-create instances
     if (isRecurring && (parsedRecurrenceEndDate || recurrenceCount)) {
       const instances = []
       let currentDate = parsedDueDate
       let count = 1
-      const maxCount = recurrenceCount ? parseInt(recurrenceCount) : 100
+      const maxCount = recurrenceCount ? Number(recurrenceCount) : 100
       
       while (count < maxCount) {
         const nextDate = getNextRecurringDate({
           ...task,
           recurrenceType,
-          recurrenceInterval: recurrenceInterval ? parseInt(recurrenceInterval) : null,
-          recurrenceDayOfWeek: recurrenceDayOfWeek ? parseInt(recurrenceDayOfWeek) : null,
-          recurrenceDayOfMonth: recurrenceDayOfMonth ? parseInt(recurrenceDayOfMonth) : null
+          recurrenceInterval: recurrenceInterval ? Number(recurrenceInterval) : null,
+          recurrenceDayOfWeek: recurrenceDayOfWeek !== undefined ? Number(recurrenceDayOfWeek) : null,
+          recurrenceDayOfMonth: recurrenceDayOfMonth ? Number(recurrenceDayOfMonth) : null
         }, currentDate)
 
         if (!nextDate) break
@@ -166,14 +175,14 @@ export async function POST(request: Request) {
           category: category || 'OTHER',
           priority: priority || 'MEDIUM',
           dueDate: nextDate,
-          estimatedEffort: estimatedEffort ? parseInt(estimatedEffort) : 25,
+          estimatedEffort: effortValue,
           isRecurring: true,
           recurrenceType,
-          recurrenceInterval: recurrenceInterval ? parseInt(recurrenceInterval) : null,
-          recurrenceDayOfWeek: recurrenceDayOfWeek ? parseInt(recurrenceDayOfWeek) : null,
-          recurrenceDayOfMonth: recurrenceDayOfMonth ? parseInt(recurrenceDayOfMonth) : null,
+          recurrenceInterval: recurrenceInterval ? Number(recurrenceInterval) : null,
+          recurrenceDayOfWeek: recurrenceDayOfWeek !== undefined ? Number(recurrenceDayOfWeek) : null,
+          recurrenceDayOfMonth: recurrenceDayOfMonth ? Number(recurrenceDayOfMonth) : null,
           recurrenceEndDate: parsedRecurrenceEndDate,
-          recurrenceCount,
+          recurrenceCount: recurrenceCount ? Number(recurrenceCount) : null,
           userId: user.id,
           parentTaskId: task.id
         })

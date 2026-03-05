@@ -63,3 +63,84 @@
   @apply opacity-90;
 }
 
+/* Calendar event styling */
+.calendar-event {
+  margin: 2px 0;
+  border-radius: 4px;
+  font-size: 12px;
+  padding: 2px 4px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  border-left: 3px solid rgba(0,0,0,0.2) !important;
+}
+
+.calendar-event:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.calendar-event.completed {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+/* Ensure timed events show in the time grid */
+.fc-timegrid-event {
+  min-height: 25px !important;
+  margin: 2px 0 !important;
+}
+
+.fc-timegrid-col-frame .fc-event {
+  height: fit-content !important;
+  /* margin: 2px 0 !important; */
+}
+
+.fc-timegrid-event .fc-event-main {
+  /* padding: 4px 6px !important; */
+}
+
+/* Make all-day events distinct */
+.fc-daygrid-event {
+  /* margin: 2px 0 !important; */
+  /* padding: 2px 4px !important; */
+  border-radius: 4px !important;
+}
+
+/* Priority colors */
+.priority-high .fc-event {
+  background-color: #ef4444 !important;
+}
+
+.priority-medium .fc-event {
+  background-color: #f59e0b !important;
+}
+
+.priority-low .fc-event {
+  background-color: #3b82f6 !important;
+}
+
+/* Make time grid slots taller */
+.fc-timegrid-slot {
+  height: 40px !important; /* Default is usually 25-30px */
+}
+
+.fc-timegrid-slot-lane {
+  height: 40px !important;
+}
+
+/* Optional: Make the time labels align better */
+.fc-timegrid-slot-label {
+  vertical-align: top !important;
+  padding-top: 4px !important;
+  font-size: 11px !important;
+}
+
+/* Make events taller to match */
+.fc-timegrid-event {
+  min-height: 35px !important;
+}
+
+/* Adjust the all-day section if needed */
+.fc-daygrid-day-frame {
+  min-height: 60px !important;
+}
