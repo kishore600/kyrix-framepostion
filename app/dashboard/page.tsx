@@ -320,7 +320,7 @@ return (
             </p>
   
             {/* Progress to next milestone */}
-            {profile?.streakCount && profile.streakCount > 0 && (
+            {profile?.streakCount && profile.streakCount > 0 ? (
               <div className="mt-1 sm:mt-2">
                 <div className="w-full bg-white/20 h-1 rounded-full">
                   <div
@@ -331,7 +331,7 @@ return (
                   ></div>
                 </div>
               </div>
-            )}
+            ):<div></div>}
           </div>
 
           {/* Focus Time - Spans full width on mobile, normal on tablet+ */}
