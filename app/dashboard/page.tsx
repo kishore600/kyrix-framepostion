@@ -263,9 +263,9 @@ return (
       <div className="mb-4 sm:mb-6 md:mb-8 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl sm:rounded-2xl text-white p-4 sm:p-5 md:p-6 shadow-lg">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/10 rounded-full flex items-center justify-center">
+            {/* <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/10 rounded-full flex items-center justify-center">
               <User className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-            </div>
+            </div> */}
             <div>
               <h2 className="text-base sm:text-lg md:text-xl font-bold truncate max-w-[150px] sm:max-w-[200px] md:max-w-none">
                 {profile?.email?.split("@")[0] || "User"}
