@@ -43,10 +43,10 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // const user = await getCurrentUser();
+    // if (!user) {
+    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // }
 
     if (!id) {
       return NextResponse.json(
@@ -63,9 +63,9 @@ export async function GET(
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    if (task.userId !== user.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // if (task.userId !== user.id) {
+    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // }
 
     return NextResponse.json(task);
   } catch (error) {
