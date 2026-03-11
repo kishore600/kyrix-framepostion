@@ -152,52 +152,48 @@ export async function POST(request: Request) {
     console.log('Created task:', task) // Debug log
 
     // If it's recurring and has an end date or count, pre-create instances
-    if (isRecurring && (parsedRecurrenceEndDate || recurrenceCount)) {
-      const instances = []
-      let currentDate = parsedDueDate
-      let count = 1
-      const maxCount = recurrenceCount ? Number(recurrenceCount) : 100
-      
-      while (count < maxCount) {
-        const nextDate = getNextRecurringDate({
-          ...task,
-          recurrenceType,
-          recurrenceInterval: recurrenceInterval ? Number(recurrenceInterval) : null,
-          recurrenceDayOfWeek: recurrenceDayOfWeek !== undefined ? Number(recurrenceDayOfWeek) : null,
-          recurrenceDayOfMonth: recurrenceDayOfMonth ? Number(recurrenceDayOfMonth) : null
-        }, currentDate)
+if (isRecurring && parsedRecurrenceEndDate) {
+  const instances = []
+  let currentDate = parsedDueDate
 
-        if (!nextDate) break
-        if (parsedRecurrenceEndDate && nextDate > parsedRecurrenceEndDate) break
+  while (true) {
+    const nextDate = getNextRecurringDate({
+      ...task,
+      recurrenceType,
+      recurrenceInterval: recurrenceInterval ? Number(recurrenceInterval) : null,
+      recurrenceDayOfWeek: recurrenceDayOfWeek !== undefined ? Number(recurrenceDayOfWeek) : null,
+      recurrenceDayOfMonth: recurrenceDayOfMonth ? Number(recurrenceDayOfMonth) : null
+    }, currentDate)
 
-        instances.push({
-          title,
-          category: category || 'OTHER',
-          priority: priority || 'MEDIUM',
-          dueDate: nextDate,
-          estimatedEffort: effortValue,
-          isRecurring: true,
-          recurrenceType,
-          recurrenceInterval: recurrenceInterval ? Number(recurrenceInterval) : null,
-          recurrenceDayOfWeek: recurrenceDayOfWeek !== undefined ? Number(recurrenceDayOfWeek) : null,
-          recurrenceDayOfMonth: recurrenceDayOfMonth ? Number(recurrenceDayOfMonth) : null,
-          recurrenceEndDate: parsedRecurrenceEndDate,
-          recurrenceCount: recurrenceCount ? Number(recurrenceCount) : null,
-          userId: user.id,
-          parentTaskId: task.id
-        })
+    if (!nextDate) break
 
-        currentDate = nextDate
-        count++
-      }
+    if (nextDate > parsedRecurrenceEndDate) break
 
-      if (instances.length > 0) {
-        await prisma.task.createMany({
-          data: instances
-        })
-      }
-    }
+    instances.push({
+      title,
+      category: category || 'OTHER',
+      priority: priority || 'MEDIUM',
+      dueDate: nextDate,
+      estimatedEffort: effortValue,
+      isRecurring: true,
+      recurrenceType,
+      recurrenceInterval: recurrenceInterval ? Number(recurrenceInterval) : null,
+      recurrenceDayOfWeek: recurrenceDayOfWeek !== undefined ? Number(recurrenceDayOfWeek) : null,
+      recurrenceDayOfMonth: recurrenceDayOfMonth ? Number(recurrenceDayOfMonth) : null,
+      recurrenceEndDate: parsedRecurrenceEndDate,
+      userId: user.id,
+      parentTaskId: task.id
+    })
 
+    currentDate = nextDate
+  }
+
+  if (instances.length > 0) {
+    await prisma.task.createMany({
+      data: instances
+    })
+  }
+}
     return NextResponse.json(task, { status: 201 })
   } catch (error) {
     console.error('Create task error:', error)

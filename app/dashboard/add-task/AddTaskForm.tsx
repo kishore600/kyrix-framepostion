@@ -20,7 +20,7 @@ interface TaskFormData {
   recurrenceDayOfWeek: number;
   recurrenceDayOfMonth: number;
   recurrenceEndDate: string;
-  recurrenceCount: number;
+  // recurrenceCount: number;
 }
 
 export default function AddTaskPage() {
@@ -41,8 +41,8 @@ export default function AddTaskPage() {
     recurrenceInterval: 1,
     recurrenceDayOfWeek: new Date().getDay(),
     recurrenceDayOfMonth: new Date().getDate(),
-    recurrenceEndDate: "",
-    recurrenceCount: 10,
+    recurrenceEndDate: ""
+    // recurrenceCount: 10,
   });
 
   useEffect(() => {
@@ -90,8 +90,8 @@ export default function AddTaskPage() {
         recurrenceInterval: task.recurrenceInterval || 1,
         recurrenceDayOfWeek: task.recurrenceDayOfWeek ?? new Date().getDay(),
         recurrenceDayOfMonth: task.recurrenceDayOfMonth ?? new Date().getDate(),
-        recurrenceEndDate: recurrenceEndDateStr,
-        recurrenceCount: task.recurrenceCount || 10,
+        recurrenceEndDate: recurrenceEndDateStr
+        // recurrenceCount: task.recurrenceCount || 10,
       });
     } catch (error) {
       console.error("Error fetching task:", error);
@@ -187,9 +187,9 @@ export default function AddTaskPage() {
           taskData.recurrenceEndDate = endDate.toISOString();
         }
         
-        if (formData.recurrenceCount) {
-          taskData.recurrenceCount = Number(formData.recurrenceCount);
-        }
+        // if (formData.recurrenceCount) {
+        //   taskData.recurrenceCount = Number(formData.recurrenceCount);
+        // }
       }
 
       console.log("Sending task data:", taskData);
@@ -505,7 +505,7 @@ export default function AddTaskPage() {
                         />
                       </div>
 
-                      <div>
+                      {/* <div>
                         <label className={labelClass}>
                           Max Occurrences <span className="text-gray-400 text-xs">(optional)</span>
                         </label>
@@ -522,7 +522,7 @@ export default function AddTaskPage() {
                             })
                           }
                         />
-                      </div>
+                      </div> */}
                     </div>
                   </div>
 

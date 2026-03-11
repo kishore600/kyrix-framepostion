@@ -20,7 +20,8 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api/auth') || 
       pathname.startsWith('/api/device-sync') ||
       pathname.startsWith('/api/focus/complete') ||
-      pathname.startsWith('/api/device/ping')) {
+      pathname.startsWith('/api/device/ping') ||
+    pathname.startsWith('/api/tasks')) {
     return NextResponse.next()
   }
 
