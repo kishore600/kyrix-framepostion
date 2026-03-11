@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getUserFromPayload } from "@/lib/auth";
 import { addDays } from "date-fns";
 
 function getNextDueDate(rule: any, currentDate: Date) {
@@ -84,12 +84,19 @@ export async function PATCH(
   try {
     const { id } = await params;
 
-    const user = await getCurrentUser();
+    const body = await request.json();
+
+    let user = await getCurrentUser();
+
+    // 2️⃣ fallback to payload userId (ESP device)
+    if (!user && body.userId) {
+      user = await getUserFromPayload(body.userId);
+    }
+
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
     console.log("Received update data:", body);
 
     if (!id) {

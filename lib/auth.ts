@@ -40,3 +40,13 @@ export async function getCurrentUser() {
   
   return user
 }
+
+export async function getUserFromPayload(userId?: string) {
+  if (!userId) return null
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId }
+  })
+
+  return user
+}
